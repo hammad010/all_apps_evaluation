@@ -1,0 +1,136 @@
+﻿Project Documentation: Building and Containerizing Multi-Framework Apps with Nginx Reverse Proxy
+Prerequisites
+Ubuntu machine with Docker installed.
+Basic understanding of Docker, Nginx, Laravel, Python, Node.js, and Vue.js.
+
+Dockerfile Explained
+
+1. `FROM ubuntu:latest`:
+	This sets the base image for the Docker container to the latest version of the Ubuntu Linux distribution.
+
+2. `ENV DEBIAN_FRONTEND=noninteractive`:
+	This sets an environment variable to prevent interactive prompts during package installations.
+
+3. RUN apt-get update && apt-get install -y \
+software-properties-common \ 
+nginx \ 
+composer \ 
+nano \ 
+curl
+	These lines use the package manager `apt-get` to update the package repository and then install various software packages:
+   - `software-properties-common`: Necessary for adding PPAs (Personal Package Archives).
+   - `nginx`: Web server software.
+   - `composer`: Dependency manager for PHP projects.
+   - `nano`: A text editor.
+   - `curl`: Command-line tool for transferring data with URLs.
+   - Various PHP and related packages for the PHP applications.
+
+4.  RUN apt install -y php8.1-fpm php8.1-bcmath php8.1-cli php8.1-common php8.1-curl php8.1-dev php8.1-fpm php8.1-gd php8.1-imagick php8.1-mbstring php8.1-memcache php8.1-mongodb php8.1-mysql php8.1-redis RUN apt install -y php8.1-opcache php8.1-pgsql php8.1-pspell php8.1-readline php8.1-snmp php8.1-sqlite3 php8.1-ssh2 php8.1-xml php8.1-xmlrpc php8.1-xsl php8.1-zip
+	This downloads the Composer installation script using `curl` and then executes it using PHP, installing Composer globally on the system.
+
+5. RUN curl -sS https://getcomposer.org/installer | php
+    RUN mv composer.phar /usr/local/bin/composer 
+    RUN composer global require laravel/installer
+	Moves the Composer executable to a location in the system's PATH so that it can be run globally as the `composer` command.
+
+6. `RUN composer global require laravel/installer`:
+	Installs the Laravel installer globally using Composer. This allows you to create new Laravel projects using the `laravel new` command.
+
+7. `RUN apt-get install -y nodejs npm`:
+	Installs Node.js and npm, the package manager for JavaScript.
+
+8. `RUN apt install -y python3 pip`:
+	Installs Python 3 and pip, the Python package installer.
+
+9. `WORKDIR /app`:
+	Sets the working directory to `/app` where the application code will be copied.
+
+10. `RUN rm /etc/nginx/sites-enabled/default`:
+	Removes the default Nginx configuration that comes with the image.
+
+11. `COPY . .`:
+	Copies the contents of the host's current directory (where the Dockerfile is located) to the current working directory in the container.
+
+12. `RUN chmod 777 -R /app`:
+	Changes the permissions of all files and directories under `/app` to be world-writable. 
+
+13. `COPY ./nginx/default /etc/nginx/sites-enabled/`:
+	Copies a custom Nginx configuration file to the appropriate location to be used by Nginx.
+
+14. `WORKDIR /app/new-py`:
+	Sets the working directory to `/app/new-py`.
+
+15. `RUN pip3 install -r requirements.txt`:
+	Installs Python dependencies listed in the `requirements.txt` file.
+
+16. `WORKDIR /app/Laravel`:
+	Sets the working directory to `/app/Laravel`.
+
+17. `RUN composer install`:
+	Installs PHP dependencies for the Laravel application.
+
+18. `WORKDIR /app/vue`:
+	 Sets the working directory to `/app/vue`.
+
+19. `RUN npm install`:
+	Installs Node.js dependencies for the Vue.js application.
+
+20. `WORKDIR /app/node`:
+	Sets the working directory to `/app/node`.
+
+21. `RUN npm install`:
+	Installs Node.js dependencies for the Node.js application.
+
+22. `EXPOSE 80`:
+	Exposes port 80 for incoming traffic.
+
+23. 
+CMD ["sh", "-c", "service php8.1-fpm start & cd /app/new-py & python3 /app/new-py/app.py & cd /app/node & npm install & node /app/node/index.js & cd /app/vue & npm run serve & nginx -g 'daemon off;'"]	
+Specifies the command to run when the container starts. The provided command starts various services and applications:
+   - PHP-FPM, Python, Node.js, and Vue.js development server are started concurrently.
+- Nginx is started with a configuration to run as a daemon.
+
+
+BUILDING AND RUNNING THE DOCKER FILE
+To build the image use the following command
+  #docker build -t image_name .
+    The dot (.) in the command to the dockerfile. You should be in same directory as the Dockerfile other wise give the entire path to the Dockerfile
+An image of your specified name would be created and to run it in the container run the following command
+  #docker run -d -p 80:80 image_name
+     A container would be up and running on 80. -d flag is for detached mod and -p is for port mapping.
+
+NOTE:
+	if you have nginx already in your machine. Make sure to stop it to run the container because the nginx withint he container is using port 80 and all the apps are running on localhost:80. If the nginx in you machine is running on port 80 it would make an conflict. So make sure to stop it
+
+Docker Compose File Explained
+
+1. **web Service**:
+   - This service is built using the current directory (`.`).
+   - The `restart` policy is set to `always`, ensuring that the container restarts automatically if it stops or crashes.
+   - The service exposes port 80 on the host and maps it to port 80 in the container.
+   - The `depends_on` directive specifies that this service depends on the `mongodb`, `postgres`, and `redis` services.
+   - The `links` section establishes links between this service and the other services, creating DNS entries that allow the services to communicate.
+   
+2. **mongodb Service**:
+   - This service uses the official `mongo` Docker image.
+   - Port 27017 in the host is mapped to port 27017 in the container.
+   - A named volume named `mymongo-data` is used to persist the MongoDB data in the `/data/db` directory.
+
+3. **postgres Service**:
+   - This service uses the official `postgres` Docker image with the `latest` tag.
+   - The container is named `postgres`.
+   - Environment variables are set to configure the PostgreSQL database: password, database name, and username.
+   - Port 5432 in the host is mapped to port 5432 in the container.
+   - A named volume named `postgres_data` is used to persist the PostgreSQL data in the `/var/lib/postgresql/data` directory.
+
+4. **redis Service**:
+   - This service uses the official `redis` Docker image with the `latest` tag.
+   - The container is named `redis`.
+   - Port 6379 in the host is mapped to port 6379 in the container.
+
+5. **volumes Section**:
+- This section defines named volumes that will be used to persist data for MongoDB (`mymongo-data`), PostgreSQL (`postgres_data`), and MySQL (`mysql_data`).
+
+
+Note:
+	To use this Docker Compose configuration, save it in a file named `docker-compose.yml` and then use the `docker-compose up` command to start the defined services. This configuration will launch the specified containers and set up the network connections and dependencies between them.
